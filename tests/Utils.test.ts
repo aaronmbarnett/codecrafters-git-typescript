@@ -5,6 +5,9 @@ import {
     splitDecompressedBlobFile,
     getBlobFilePath,
     getCompleteBlobFilePath,
+    parseTreeContentLines,
+    getNames,
+    getNameFromTreeHeader,
 } from '../app/Utils';
 
 const GIT_OBJECT_ROOT = '.git/objects/';
@@ -38,5 +41,25 @@ describe('utils', () => {
 
     test('gets the complete blob file path', () => {
         expect(getCompleteBlobFilePath('abcdef')).toBe(`${GIT_OBJECT_ROOT}ab/cdef`);
+    });
+
+    test('should parse git tree contents', () => {
+        const contents = Buffer.from('100644 hello\0filefilefilefilefile040000 tree\0treetreetreetreetree');
+        expect(parseTreeContentLines(contents)).toEqual([
+            {
+                mode: Buffer.from('100644'),
+                name: Buffer.from('hello'),
+                hash: Buffer.from('filefilefilefilefile'),
+            },
+            {
+                mode: Buffer.from('040000'),
+                name: Buffer.from('tree'),
+                hash: Buffer.from('treetreetreetreetree'),
+            },
+        ]);
+    });
+
+    test('should get filename from git tree entry header', () => {
+        expect(getNameFromTreeHeader('100644 test-name')).toBe('test-name');
     });
 });

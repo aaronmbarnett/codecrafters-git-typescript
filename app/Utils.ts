@@ -8,11 +8,14 @@ type PipeFunctions<T, R> = R extends [(arg: T) => infer U]
       ? PipeFunctions<U, Rest>
       : T;
 
+type Mode = '100644' | '100755' | '120000' | '040000';
+type TreeEntryHeader = `${Mode} ${string}`;
+
 export function pipe<T, Fns extends Array<(arg: any) => any>>(value: T, ...fns: Fns): PipeFunctions<T, Fns> {
     return fns.reduce((prev, fn) => fn(prev), value) as PipeFunctions<T, Fns>;
 }
 
-function tap<T>(fn: (value: T) => void): (value: T) => T {
+export function tap<T>(fn: (value: T) => void): (value: T) => T {
     return (value: T): T => {
         fn(value);
         return value;
@@ -58,4 +61,42 @@ export async function getGitObjectHash(filePath: string): Promise<string> {
     const hash = createHash('sha1');
     hash.update(contentBuffer);
     return hash.digest('hex');
+}
+export function parseTreeContentLines(content: Buffer): { mode: Buffer; name: Buffer; hash: Buffer }[] {
+    let offset = 0;
+    const entries: ReturnType<typeof parseTreeContentLines> = [];
+    while (offset < content.length) {
+        let modeEnd = offset;
+        while (content[modeEnd] !== 0x20) {
+            modeEnd++;
+        }
+        const mode = content.subarray(offset, modeEnd);
+        offset = modeEnd + 1;
+
+        let nameEnd = offset;
+        while (content[nameEnd] !== 0x00) {
+            nameEnd++;
+        }
+        const name = content.subarray(offset, nameEnd);
+        offset = nameEnd + 1;
+
+        const hash = content.subarray(offset, offset + 20);
+        offset += 20;
+
+        entries.push({ mode, name, hash });
+    }
+    return entries;
+}
+export function getNameFromTreeHeader(treeHeader: TreeEntryHeader) {
+    return treeHeader.split(' ')[1];
+}
+export function getNames(contents: string[]): string[] {
+    const result = [];
+    for (let index = 0; index < contents.length; index++) {
+        if (index % 2 === 0) {
+            result.push(contents[index].split(' ')[0]);
+        }
+    }
+
+    return result;
 }

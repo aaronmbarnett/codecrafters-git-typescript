@@ -4,9 +4,12 @@ import {
     getBlobFilePath,
     getCompleteBlobFilePath,
     getGitObjectHash,
+    getNames,
     getRelativeBlobFilePath,
     getUncompressedGitObject,
+    parseTreeContentLines,
     pipe,
+    tap,
     splitDecompressedBlobFile,
     splitInput,
 } from './Utils';
@@ -18,6 +21,7 @@ enum Commands {
     Init = 'init',
     CatFile = 'cat-file',
     HashObject = 'hash-object',
+    ListTree = 'ls-tree',
 }
 
 switch (command) {
@@ -44,18 +48,34 @@ switch (command) {
         }
         break;
     case Commands.HashObject:
-        const flag: string = args[1];
-        const filepath = args[2];
-        getGitObjectHash(filepath).then(async (result) => {
-            const uncompressedGitObject = await getUncompressedGitObject(filepath);
-            const destinationFilePath = getCompleteBlobFilePath(result);
+        const hoFlag = args[1];
+        const filepathArg = args[2];
+        getGitObjectHash(filepathArg).then(async (sha1Hash) => {
+            const uncompressedGitObject = await getUncompressedGitObject(filepathArg);
+            const destinationFilePath = getCompleteBlobFilePath(sha1Hash);
 
-            process.stdout.write(result);
-            if (flag === '-w') {
-                fs.mkdirSync(getBlobFilePath(splitInput(result)[0]), { recursive: true });
+            process.stdout.write(sha1Hash);
+            if (hoFlag === '-w') {
+                fs.mkdirSync(getBlobFilePath(splitInput(sha1Hash)[0]), { recursive: true });
                 fs.writeFileSync(destinationFilePath, zlib.deflateSync(uncompressedGitObject));
             }
         });
+        break;
+    case Commands.ListTree:
+        const [_command, lsTreeFlag, treeSha1Hash] = args;
+        const [header, content] = pipe(
+            getCompleteBlobFilePath(treeSha1Hash),
+            fs.readFileSync,
+            zlib.inflateSync,
+            splitDecompressedBlobFile
+        );
+        if (!header.toString().includes('tree')) throw new Error('Not a tree.');
+        const treeContents = parseTreeContentLines(content);
+        if (lsTreeFlag === '--name-only') {
+            for (const entry of treeContents) {
+                process.stdout.write(entry.name + '\n');
+            }
+        }
         break;
     default:
         throw new Error(`Unknown command ${command}`);
