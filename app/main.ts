@@ -3,15 +3,15 @@ import * as zlib from 'zlib';
 import {
     getBlobFilePath,
     getCompleteBlobFilePath,
-    getGitObjectHash,
+    getBlobObjectHash,
     getNames,
     getRelativeBlobFilePath,
-    getUncompressedGitObject,
+    getUncompressedBlobObject,
     parseTreeContentLines,
     pipe,
-    tap,
     splitDecompressedBlobFile,
     splitInput,
+    writeTree,
 } from './Utils';
 
 const args = process.argv.slice(2);
@@ -22,6 +22,7 @@ enum Commands {
     CatFile = 'cat-file',
     HashObject = 'hash-object',
     ListTree = 'ls-tree',
+    WriteTree = 'write-tree',
 }
 
 switch (command) {
@@ -41,7 +42,7 @@ switch (command) {
         try {
             const blob = fs.readFileSync(pipe(blobString, splitInput, getRelativeBlobFilePath, getBlobFilePath));
             const decompressedBlob = zlib.inflateSync(blob);
-            const [header, content] = splitDecompressedBlobFile(decompressedBlob);
+            const [_header, content] = splitDecompressedBlobFile(decompressedBlob);
             process.stdout.write(content.toString());
         } catch (error) {
             console.error(error);
@@ -50,16 +51,15 @@ switch (command) {
     case Commands.HashObject:
         const hoFlag = args[1];
         const filepathArg = args[2];
-        getGitObjectHash(filepathArg).then(async (sha1Hash) => {
-            const uncompressedGitObject = await getUncompressedGitObject(filepathArg);
-            const destinationFilePath = getCompleteBlobFilePath(sha1Hash);
+        const sha1Hash = getBlobObjectHash(filepathArg);
+        const uncompressedGitObject = getUncompressedBlobObject(filepathArg);
+        const destinationFilePath = getCompleteBlobFilePath(sha1Hash);
 
-            process.stdout.write(sha1Hash);
-            if (hoFlag === '-w') {
-                fs.mkdirSync(getBlobFilePath(splitInput(sha1Hash)[0]), { recursive: true });
-                fs.writeFileSync(destinationFilePath, zlib.deflateSync(uncompressedGitObject));
-            }
-        });
+        process.stdout.write(sha1Hash);
+        if (hoFlag === '-w') {
+            fs.mkdirSync(getBlobFilePath(splitInput(sha1Hash)[0]), { recursive: true });
+            fs.writeFileSync(destinationFilePath, zlib.deflateSync(uncompressedGitObject));
+        }
         break;
     case Commands.ListTree:
         const [_command, lsTreeFlag, treeSha1Hash] = args;
@@ -76,6 +76,10 @@ switch (command) {
                 process.stdout.write(entry.name + '\n');
             }
         }
+        break;
+    case Commands.WriteTree:
+        const treeHash = writeTree(process.cwd());
+        process.stdout.write(treeHash);
         break;
     default:
         throw new Error(`Unknown command ${command}`);
