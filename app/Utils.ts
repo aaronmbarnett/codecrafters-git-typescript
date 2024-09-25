@@ -26,6 +26,10 @@ export function tap<T>(fn: (value: T) => void): (value: T) => T {
     };
 }
 
+export function getSha1Hash(input: string) {
+    return createHash('sha1').update(input).digest('hex');
+}
+
 export function splitInput(input: string): [string, string] {
     if (input.length <= 2) {
         return [input, '']; // If the string has 2 or fewer characters, return the whole string and an empty string
@@ -145,12 +149,12 @@ export function writeTree(directoryPath: string): string {
         Buffer.from(`tree ${Buffer.byteLength(treeObject, 'binary')}\0`),
         Buffer.from(treeObject, 'binary'),
     ]);
-    const treeHash = createHash('sha1').update(treeContent).digest('hex');
-    const gitDirectory = path.join('.git', 'objects', treeHash.substring(0, 2));
+    const result = createHash('sha1').update(treeContent).digest('hex');
+    const gitDirectory = path.join('.git', 'objects', result.substring(0, 2));
     if (!fs.existsSync(gitDirectory)) {
         fs.mkdirSync(gitDirectory, { recursive: true });
     }
-    const objectPath = path.join(gitDirectory, treeHash.substring(2));
+    const objectPath = path.join(gitDirectory, result.substring(2));
     fs.writeFileSync(objectPath, deflateSync(treeContent));
-    return treeHash;
+    return result;
 }

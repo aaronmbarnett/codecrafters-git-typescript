@@ -12,7 +12,9 @@ import {
     splitDecompressedBlobFile,
     splitInput,
     writeTree,
+    getSha1Hash,
 } from './Utils';
+import path from 'path';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -23,6 +25,7 @@ enum Commands {
     HashObject = 'hash-object',
     ListTree = 'ls-tree',
     WriteTree = 'write-tree',
+    CommitTree = 'commit-tree',
 }
 
 switch (command) {
@@ -80,6 +83,24 @@ switch (command) {
     case Commands.WriteTree:
         const treeHash = writeTree(process.cwd());
         process.stdout.write(treeHash);
+        break;
+    case Commands.CommitTree:
+        const [_a, treeSha1, parentCommitFlag, parentCommitSha1, messageFlag, commitMessage] = args;
+        let commitContent = `tree ${treeSha1}\n`;
+        commitContent += 'parent ' + parentCommitSha1 + '\n';
+        commitContent += `author Bob <bob@example.com> ${Date.now() / 1000} +0000\n`;
+        commitContent += `committer Ross <ross@example.com> ${Date.now() / 1000} +0000\n\n`;
+        commitContent += commitMessage + '\n';
+        const commit = `commit ${commitContent.length}\0${commitContent}`;
+        const commitHash = getSha1Hash(commit);
+        const compressedCommit = zlib.deflateSync(commit);
+
+        const commitPath = path.join('.git', 'objects', commitHash.substring(0, 2));
+        if (!fs.existsSync(commitPath)) {
+            fs.mkdirSync(commitPath, { recursive: true });
+        }
+        fs.writeFileSync(path.join(commitPath, commitHash.substring(2)), compressedCommit);
+        process.stdout.write(commitHash);
         break;
     default:
         throw new Error(`Unknown command ${command}`);
